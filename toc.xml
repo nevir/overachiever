@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Addon Author="Nevir" APIVersion="8" Name="Overachiever" Description="">
+  <Form Name="Tracker.xml"/>
+  <Script Name="Overachiever.lua"/>
+  <Script Name="Tracker.lua"/>
+  <Script Name="Util.lua"/>
+  <Script Name="ZoneInfo.lua"/>
+</Addon>
