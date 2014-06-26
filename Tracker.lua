@@ -1,63 +1,17 @@
 local Tracker = {}
+Tracker.__index = Tracker
+
 Apollo.RegisterPackage(Tracker, "Overachiever.Tracker", 1, {
   "Overachiever.Util",
+  "Overachiever.Trackable",
   "TrackMaster",
 })
 
 local Util
+local Trackable
 function Tracker:OnLoad()
-  Util = Apollo.GetPackage("Overachiever.Util").tPackage
-end
-
-local ROW_TEXT_COLOR_FOCUSED = ApolloColor.new("ff66d9ef")
-local ROW_TEXT_COLOR_NORMAL  = ApolloColor.new("ffffffff")
-
--- Tracked Items --
-
-Tracker.Item = {}
-
-function Tracker.Item:new(config, unit)
-  instance = {
-    config = config,
-    unit = unit,
-  }
-  setmetatable(instance, self)
-
-  return instance
-end
-Tracker.Item.__index = Tracker.Item
-
-function Tracker.Item:UpdateDistance(relativePosition)
-  distance = nil
-  if relativePosition then
-    local unitPosition = self.unit:GetPosition()
-    distance = unitPosition and Util.DistanceTo(unitPosition, relativePosition)
-  end
-
-  if distance ~= self.distance then
-    self.distance = distance
-    self:Render()
-  end
-end
-
-function Tracker.Item:SetFocused(focused)
-  if self.focused == focused then return end
-  self.focused = focused
-  self:Render()
-end
-
-function Tracker.Item:Render()
-  if not self.row then return end
-  local label = self.row:FindChild("Label")
-
-  local labelString = self.unit:GetName()
-  if self.config.showDistance and self.distance then
-    labelString = string.format("(%dm) %s", self.distance, labelString)
-  end
-  label:SetText(labelString)
-
-  local color = self.focused and ROW_TEXT_COLOR_FOCUSED or ROW_TEXT_COLOR_NORMAL
-  label:SetTextColor(color)
+  Util      = Apollo.GetPackage("Overachiever.Util").tPackage
+  Trackable = Apollo.GetPackage("Overachiever.Trackable").tPackage
 end
 
 -- Tracker Proper --
@@ -68,7 +22,7 @@ function Tracker:new(config)
     doc = XmlDoc.CreateFromFile("Tracker.xml"),
     player = GameLib.GetPlayerUnit(),
     shown = true,
-    itemsByUnitId = {},
+    trackablesById = {},
   }
   setmetatable(instance, self)
 
@@ -76,14 +30,13 @@ function Tracker:new(config)
 
   return instance
 end
-Tracker.__index = Tracker
 
 function Tracker:OnDocLoaded()
   self.window = Apollo.LoadForm(self.doc, "Tracker", nil, self)
   self.scrollArea = self.window:FindChild("ScrollArea")
 
-  for unitId, item in pairs(self.itemsByUnitId) do
-    self:AppendRow(item)
+  for id, trackable in pairs(self.trackablesById) do
+    self:AppendRow(trackable)
   end
 
   self:ConfigureTrackMaster()
@@ -115,41 +68,36 @@ end
 
 -- State --
 
-function Tracker:TrackUnit(unit)
-  local unitId = unit:GetId()
-  if self.itemsByUnitId[unitId] then return end
-  local item = Tracker.Item:new(self.config, unit)
-  item.id = unitId
-  self:AppendRow(item)
-  self.itemsByUnitId[unitId] = item
+function Tracker:Track(trackable)
+  self.trackablesById[trackable.id] = trackable
+  self:AppendRow(trackable, true)
+  if trackable.id == self.pinnedId then
+    trackable:SetFocused(true)
+  end
 
   self:Render()
 end
 
-function Tracker:ForgetUnit(unit)
-  local unitId = unit:GetId()
-  local item = self.itemsByUnitId[unitId]
-  if not item then return end
-  self:RemoveRow(item)
-  self.itemsByUnitId[unitId] = nil
-
+function Tracker:Forget(trackable)
+  self.trackablesById[trackable.id] = nil
+  self:RemoveRow(trackable)
   self:Render()
 end
 
 function Tracker:OnUnitRowPressed(button)
-  local item = button:GetParent():GetData()
-  if self.focusedUnitId then
-    local previousItem = self.itemsByUnitId[self.focusedUnitId]
-    if previousItem then
-      previousItem:SetFocused(false)
+  local trackable = button:GetParent():GetData()
+  if self.pinnedId then
+    local previous = self.trackablesById[self.pinnedId]
+    if previous then
+      previous:SetFocused(false)
     end
   end
 
-  if self.focusedUnitId == item.id then
-    self.focusedUnitId = nil
+  if self.pinnedId == trackable.id then
+    self.pinnedId = nil
   else
-    self.focusedUnitId = item.id
-    item:SetFocused(true)
+    self.pinnedId = trackable.id
+    trackable:SetFocused(true)
   end
 
   self:Render()
@@ -163,35 +111,39 @@ function Tracker:Show(show)
   self.window:Show(show, true)
 end
 
-function Tracker:AppendRow(item)
+function Tracker:AppendRow(trackable, animate)
   if not self.window then return end
-  item.row = Apollo.LoadForm(self.doc, "UnitRow", self.scrollArea, self)
-  item.row:SetData(item)
+  if trackable.row then return end
+  trackable.row = Apollo.LoadForm(self.doc, "UnitRow", self.scrollArea, self)
+  trackable.row:SetData(trackable)
+  if animate then
+    trackable.row:SetSprite("CRB_WindowAnimationSprites:sprWinAnim_BirthSmallTemp")
+  end
 end
 
-function Tracker:RemoveRow(item)
-  if not item.row then return end
-  item.row:Destroy()
+function Tracker:RemoveRow(trackable)
+  if not trackable.row then return end
+  trackable.row:Destroy()
 end
 
 function Tracker:Render()
   if not self.window then return end
-  self:UpdateItemDistances()
-  local trackedItem = self:GetTrackedItem()
-  local trackedItemId = trackedItem and trackedItem.id
-  self:RenderTrackedItem(trackedItem)
+  self:UpdateDistances()
+  local focused = self:GetFocusedTrackable()
+  local focusedId = focused and focused.id
+  self:RenderTrackedItem(focused)
 
   self.scrollArea:ArrangeChildrenVert(0, function(row1, row2)
-    local item1 = row1:GetData()
-    local item2 = row2:GetData()
+    local trackable1 = row1:GetData()
+    local trackable2 = row2:GetData()
 
-    if item1.id == trackedItemId then
+    if trackable1.id == focusedId then
       return true
-    elseif item2.id == trackedItemId then
+    elseif trackable2.id == focusedId then
       return false
-    elseif item1 and item1.distance and item2 and item2.distance then
-      return item1.distance < item2.distance
-    elseif item1 and item1.distance then
+    elseif trackable1 and trackable1.distance and trackable2 and trackable2.distance then
+      return trackable1.distance < trackable2.distance
+    elseif trackable1 and trackable1.distance then
       return true
     else
       return false
@@ -202,36 +154,38 @@ end
 
 -- Tracked Unit Rendering --
 
-function Tracker:RenderTrackedItem(item)
+function Tracker:RenderTrackedItem(trackable)
   if not self.config.trackMasterEnabled then return end
   local TrackMaster = Apollo.GetAddon("TrackMaster")
   if not TrackMaster then return end
-  local unit = item and item.unit
+  -- TODO(nevir): Deal with non-units.
+  local unit = trackable and trackable.unit
   TrackMaster:SetTarget(unit, -1, self.config.trackMasterLineId)
 end
 
 -- Utility --
 
-function Tracker:UpdateItemDistances()
+function Tracker:UpdateDistances()
+  if not self.player then return end
   local playerPosition = self.player:GetPosition()
-  for unitId, item in pairs(self.itemsByUnitId) do
-    item:UpdateDistance(playerPosition)
+  for id, trackable in pairs(self.trackablesById) do
+    trackable:UpdateDistance(playerPosition)
   end
 end
 
-function Tracker:GetTrackedItem()
-  if self.itemsByUnitId[self.focusedUnitId] then
-    return self.itemsByUnitId[self.focusedUnitId]
+function Tracker:GetFocusedTrackable()
+  if self.trackablesById[self.pinnedId] then
+    return self.trackablesById[self.pinnedId]
   end
 
-  local trackedUnitId = nil
+  local trackedId = nil
   local minDistance = math.huge
-  for unitId, item in pairs(self.itemsByUnitId) do
-    if item.distance and item.distance < minDistance then
-      trackedUnitId = unitId
-      minDistance = item.distance
+  for id, trackable in pairs(self.trackablesById) do
+    if trackable.distance and trackable.distance < minDistance then
+      trackedId = id
+      minDistance = trackable.distance
     end
   end
 
-  return self.itemsByUnitId[trackedUnitId]
+  return self.trackablesById[trackedId]
 end

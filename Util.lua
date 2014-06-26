@@ -25,34 +25,37 @@ function Util.DistanceTo(position1, position2)
   return math.sqrt(math.pow(deltaX, 2) + math.pow(deltaY, 2) + math.pow(deltaZ, 2))
 end 
 
--- UNUSED:
+function Util.Trim(string)
+  return string:gsub("\A%s*(.-)%s*\Z", "%1")
+end
 
-Util.Set = {}
-function Util.Set:new()
+function Util.Normalize(string)
+  return Util.Trim(string):lower()
+end
+
+-- CountedReferenceMap --
+
+Util.CountedReferenceMap = {}
+Util.CountedReferenceMap.__index = Util.CountedReferenceMap
+
+function Util.CountedReferenceMap:new()
+  -- TODO(nevir): In debug mode, track count over time to help detect leaks.
   instance = {count = 0}
   setmetatable(instance, self)
+
   return instance
 end
-Util.Set.__index = Util.Set
 
-function Util.Set:_Add(item)
-  if self[item] then return end
-  self[item] = true
+function Util.CountedReferenceMap:Add(id, value)
+  if self[id] then return end
+  self[id] = value
   self.count = self.count + 1
 end
 
-function Util.Set:_Remove(item)
-  if not self[item] then return end
-  self[item] = nil
+function Util.CountedReferenceMap:Remove(id)
+  if not self[id] then return end
+  self[id] = nil
   self.count = self.count - 1
-end
-
-function Util.Set:_Toggle(item, add)
-  if add then
-    self:_Add(item)
-  else
-    self:_Remove(item)
-  end
 end
 
 Apollo.RegisterPackage(Util, "Overachiever.Util", 1, {})

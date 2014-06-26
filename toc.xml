@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Addon Author="Nevir" APIVersion="8" Name="Overachiever" Description="">
   <Form Name="Tracker.xml"/>
+
+  <Script Name="Vendor/GeminiLocale/GeminiLocale.lua"/>
+
+  <Script Name="Achievements.lua"/>
   <Script Name="Overachiever.lua"/>
+  <Script Name="Trackable.lua"/>
   <Script Name="Tracker.lua"/>
   <Script Name="Util.lua"/>
-  <Script Name="ZoneInfo.lua"/>
+
+  <Script Name="Locales/enUS.lua"/>
 </Addon>

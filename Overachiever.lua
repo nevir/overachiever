@@ -3,81 +3,63 @@ require "AchievementsLib"
 require "GameLib"
 require "Window"
 
--- Initialization --
+local UNIT_TYPE_PLAYER = "Player"
+
+-- AddOn Setup/Dependencies --
 
 local Overachiever = {} 
+Overachiever.__index = Overachiever
 
-function Overachiever:new()
+function Overachiever:Init()
   instance = {
+    -- Persisted configuration: defaults.
     config = {
+      achievements = {},
       tracker = {
         showDistance = true,
         trackMasterEnabled = true,
         trackMasterLineId = 1,
       },
-    }
+    },
   }
   setmetatable(instance, self)
-  return instance
-end
-Overachiever.__index = Overachiever
 
-function Overachiever:Init()
-  Apollo.RegisterAddon(self, false, "", {
+  Apollo.RegisterAddon(instance, false, "", {
+    "Overachiever.Achievements",
+    "Overachiever.Trackable",
     "Overachiever.Tracker",
     "Overachiever.Util",
-    "Overachiever.ZoneInfo",
   })
+
+  return instance
 end
 
 function Overachiever:OnLoad()
   self:LoadDependencies()
-  self:InitializeState()
-
-  self:IndexAchievements()
-  self:IndexZoneNames()
-  self:LoadCurrentGameState()
+  self:InitializeRuntimeState()
   self:RegisterEventHandlers()
 
   self.tracker:Show(true)
 end
 
+local Achievements
 local Tracker
+local Trackable
 local Util
-local ZoneInfo
-local TrackMaster
 function Overachiever:LoadDependencies()
-  Tracker     = Apollo.GetPackage("Overachiever.Tracker").tPackage
-  Util        = Apollo.GetPackage("Overachiever.Util").tPackage
-  ZoneInfo    = Apollo.GetPackage("Overachiever.ZoneInfo").tPackage
+  Achievements = Apollo.GetPackage("Overachiever.Achievements").tPackage
+  Trackable    = Apollo.GetPackage("Overachiever.Trackable").tPackage
+  Tracker      = Apollo.GetPackage("Overachiever.Tracker").tPackage
+  Util         = Apollo.GetPackage("Overachiever.Util").tPackage
 end
 
-function Overachiever:InitializeState()
-  self.tracker = Tracker:new(self.config.tracker)
-  self.zoneInfo = Util.DefaultTable:new(function(key) return ZoneInfo:new(key) end)
-  self.zoneInfoByName = {} -- See GetCurrentZoneInfo.
-end
+-- Initialization --
 
--- Preloading --
+function Overachiever:InitializeRuntimeState()
+  self.achievements = Achievements:new(self.config.achievements)
+  self.tracker      = Tracker:new(self.config.tracker)
 
-function Overachiever:IndexAchievements()
-  for i, achievement in pairs(AchievementsLib.GetAchievements(false)) do
-    local zoneInfo = self.zoneInfo[achievement:GetWorldZoneId()]
-    zoneInfo:IndexAchievement(achievement)
-  end
-end
-
-function Overachiever:IndexZoneNames()
-  for i, info in pairs(AchievementsLib.GetAchievementZones()) do
-    if (rawget(self.zoneInfo, info.nId) ~= nil) then
-      self.zoneInfo[info.nId].name = info.strName
-      self.zoneInfoByName[info.strName] = self.zoneInfo[info.nId] -- See GetCurrentZoneInfo.
-    end
-  end
-end
-
-function Overachiever:LoadCurrentGameState()
-  self:SetCurrentZoneInfo()
+  self.trackablesInRange = Util.CountedReferenceMap:new()
 end
 
 function Overachiever:RegisterEventHandlers()
@@ -88,7 +70,7 @@ function Overachiever:RegisterEventHandlers()
   self.tickTimer = ApolloTimer.Create(1/15, true, "OnTick", self)
 end
 
--- Persistence Handlers --
+-- Persistence --
 
 function Overachiever:OnSave(saveType)
   if saveType ~= GameLib.CodeEnumAddonSaveLevel.Character then return end
@@ -103,57 +85,59 @@ end
 
 -- Event Handlers --
 
-function Overachiever:OnSubZoneChanged(id, name)
-  self:SetCurrentZoneInfo()
-end
-
 function Overachiever:OnUnitCreated(unit)
-  if self:UnitIsInteresting(unit) then
-    self.tracker:TrackUnit(unit)
+  local unitId   = unit:GetId()
+  local existing = self.trackablesInRange[unitId]
+  if existing then return end
+
+  local trackable = self:TrackableForUnit(unit)
+  if not trackable then
+    -- So that we do not query it again.
+    self.trackablesInRange:Add(unitId, true)
+  else
+    self.trackablesInRange:Add(unitId, trackable)
+    self.tracker:Track(trackable)
   end
 end
 
 function Overachiever:OnUnitDestroyed(unit)
-  if self:UnitIsInteresting(unit) then
-    self.tracker:ForgetUnit(unit)
+  local unitId    = unit:GetId()
+  local trackable = self.trackablesInRange[unitId]
+  if not trackable then return end
+
+  if trackable ~= true then
+    self.tracker:Forget(trackable)
   end
+  self.trackablesInRange:Remove(unitId)
 end
 
 function Overachiever:OnTick()
   -- TODO(nevir): WOW WHAT A HACK.
-  for unitId, _ in pairs(self.tracker.itemsByUnitId) do
-    local unit = GameLib.GetUnitById(unitId)
-    if not self:UnitIsInteresting(unit) then
-      self.tracker:ForgetUnit(unit)
+  for id, trackable in pairs(self.tracker.trackablesById) do
+    -- TODO(nevir): Deal with non-units.
+    if not self:TrackableForUnit(GameLib.GetUnitById(id)) then
+      self.tracker:Forget(trackable)
+      self.trackablesInRange:Remove(id)
     end
   end
 
   self.tracker:Render()
 end
 
--- Utility --
+-- Trackables --
 
-function Overachiever:SetCurrentZoneInfo()
-  -- TODO(nevir) ...seriously?
-  local currentZoneMap = GameLib.GetCurrentZoneMap()
-  if currentZoneMap == nil or currentZoneMap.strName == nil then
-    self.currentZoneInfo = nil
-  else
-    self.currentZoneInfo = self.zoneInfoByName[currentZoneMap.strName]
-  end
-end
-
-function Overachiever:UnitIsInteresting(unit)
+function Overachiever:TrackableForUnit(unit)
   if not unit then return end
-  if unit:GetActivationState().Datacube ~= nil then return true end
+  if unit:IsDead() then return end
+  if unit:GetType() == UNIT_TYPE_PLAYER then return end
 
-  if self.currentZoneInfo then
-    return self.currentZoneInfo:IsWatchingUnit(unit)
-  end
+  local achievements = self.achievements:ForUnit(unit)
+  local reasons = self.achievements:ExtraReasonsForUnit(unit)
+  if table.getn(achievements) == 0 and table.getn(reasons) == 0 then return end
 
-  return false
+  return Trackable:new(self.config.tracker, unit, achievements, reasons)
 end
 
-local OverachieverInst = Overachiever:new()
-oa = OverachieverInst
-OverachieverInst:Init()
+-- Entry Point --
+
+oa = Overachiever:Init()

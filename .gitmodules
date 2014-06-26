@@ -1,0 +1,4 @@
+[submodule "Vendor/GeminiLocale"]
+	path = Vendor/GeminiLocale
+	url = https://github.com/wildstarnasa/GeminiLocale
+	branch = master
