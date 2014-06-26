@@ -129,21 +129,23 @@ end
 function Tracker:Render()
   if not self.window then return end
   self:UpdateDistances()
-  local focused = self:GetFocusedTrackable()
-  local focusedId = focused and focused.id
-  self:RenderTrackedItem(focused)
+  local ordered = self:GetTrackablesInOrder()
+  self:HideDuplicates(ordered)
+
+  local orderByTrackable = {}
+  for i, trackable in ipairs(ordered) do
+    orderByTrackable[trackable] = i
+  end
+
+  self:RenderTrackedItem(ordered[1])
 
   self.scrollArea:ArrangeChildrenVert(0, function(row1, row2)
-    local trackable1 = row1:GetData()
-    local trackable2 = row2:GetData()
+    local index1 = orderByTrackable[row1:GetData()]
+    local index2 = orderByTrackable[row2:GetData()]
 
-    if trackable1.id == focusedId then
-      return true
-    elseif trackable2.id == focusedId then
-      return false
-    elseif trackable1 and trackable1.distance and trackable2 and trackable2.distance then
-      return trackable1.distance < trackable2.distance
-    elseif trackable1 and trackable1.distance then
+    if index1 and index2 then
+      return index1 < index2
+    elseif index1 then
       return true
     else
       return false
@@ -173,19 +175,34 @@ function Tracker:UpdateDistances()
   end
 end
 
-function Tracker:GetFocusedTrackable()
-  if self.trackablesById[self.pinnedId] then
-    return self.trackablesById[self.pinnedId]
-  end
-
-  local trackedId = nil
-  local minDistance = math.huge
+function Tracker:GetTrackablesInOrder()
+  local ordered = {}
   for id, trackable in pairs(self.trackablesById) do
-    if trackable.distance and trackable.distance < minDistance then
-      trackedId = id
-      minDistance = trackable.distance
-    end
+    table.insert(ordered, trackable)
   end
 
-  return self.trackablesById[trackedId]
+  table.sort(ordered, function(trackable1, trackable2)
+    if trackable1.id == self.pinnedId then
+      return true
+    elseif trackable2.id == self.pinnedId then
+      return false
+    elseif trackable1 and trackable1.distance and trackable2 and trackable2.distance then
+      return trackable1.distance < trackable2.distance
+    elseif trackable1 and trackable1.distance then
+      return true
+    else
+      return false
+    end
+  end)
+
+  return ordered
+end
+
+function Tracker:HideDuplicates(ordered)
+  local seenNames = {}
+  for i, trackable in ipairs(ordered) do
+    local name = trackable:GetName()
+    trackable.row:Show(name == "" or not seenNames[name], true)
+    seenNames[name] = true
+  end
 end

@@ -74,7 +74,7 @@ function Overachiever:RegisterEventHandlers()
   Apollo.RegisterEventHandler("UnitCreated",    "OnUnitCreated",    self)
   Apollo.RegisterEventHandler("UnitDestroyed",  "OnUnitDestroyed",  self)
 
-  self.tickTimer = ApolloTimer.Create(1/15, true, "OnTick", self)
+  self.tickTimer = ApolloTimer.Create(1/10, true, "OnTick", self)
 end
 
 -- Persistence --

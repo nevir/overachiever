@@ -56,7 +56,6 @@ end
 function Achievements:IndexKillAchievements()
   for i, achievement in ipairs(self:IncompleteForCategory(CATEGORY_KILL, true)) do
     for j, item in ipairs(achievement:GetChecklistItems() or {}) do
-      Print(item.strChecklistEntry)
       if not item.bIsComplete then
         local name = Util.Normalize(item.strChecklistEntry)
         table.insert(self.watchedByUnitName[name], achievement)

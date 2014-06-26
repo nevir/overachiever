@@ -49,6 +49,10 @@ function Trackable:SetFocused(focused)
   self:Render()
 end
 
+function Trackable:GetName()
+  return self.unit:GetName() or ""
+end
+
 function Trackable:Render()
   if not self.row then return end
   self:RenderTooltip()
