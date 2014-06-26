@@ -11,15 +11,17 @@ end
 -- TODO(nevir): Palette constants.
 local ROW_TEXT_COLOR_FOCUSED    = "ff4fc3f7" 
 local ROW_TEXT_COLOR_NORMAL     = "ffffffff"
-local TOOLTIP_REASON_COLOR      = "fffff176"
 local TOOLTIP_ACHIEVEMENT_COLOR = "ff4fc3f7"
+local TOOLTIP_PATH_COLOR        = "ffaed581"
+local TOOLTIP_REASON_COLOR      = "fffff176"
 
-function Trackable:new(config, unit, achievements, reasons)
+function Trackable:new(config, unit, achievements, missions, reasons)
   instance = {
     id = unit:GetId(),
     config = config,
     unit = unit,
     achievements = achievements,
+    missions = missions,
     reasons = reasons,
   }
   setmetatable(instance, self)
@@ -70,7 +72,20 @@ function Trackable:RenderTooltip()
     text = text .. string.format("<P TextColor=\"%s\">%s</P>", TOOLTIP_ACHIEVEMENT_COLOR, achievement:GetName())
   end
 
-  if table.getn(self.achievements) > 0 and table.getn(self.reasons) > 0 then
+  if text ~= "" and table.getn(self.missions) > 0 then
+    -- TODO(nevir): Gotta be a better way.
+    text = text .. "<P TextColor=\"00ffffff\">-</P>"
+  end
+
+  for i, mission in ipairs(self.missions) do
+    local name = mission:GetName()
+    if name == "" then
+      name = "Path" -- TODO(nevir): Localize!
+    end
+    text = text .. string.format("<P TextColor=\"%s\">%s</P>", TOOLTIP_PATH_COLOR, name)
+  end
+
+  if text ~= "" and table.getn(self.reasons) > 0 then
     -- TODO(nevir): Gotta be a better way.
     text = text .. "<P TextColor=\"00ffffff\">-</P>"
   end

@@ -42,7 +42,6 @@ function Achievements:new(config)
     config = config,
     watchedByUnitName = Util.DefaultTable:new(function(key) return {} end),
     secretStashByZone = {},
-
   }
   setmetatable(instance, self)
 

@@ -15,6 +15,7 @@ function Overachiever:Init()
     -- Persisted configuration: defaults.
     config = {
       achievements = {},
+      paths = {},
       tracker = {
         showDistance = true,
         trackMasterEnabled = true,
@@ -26,6 +27,7 @@ function Overachiever:Init()
 
   Apollo.RegisterAddon(instance, false, "", {
     "Overachiever.Achievements",
+    "Overachiever.Paths",
     "Overachiever.Trackable",
     "Overachiever.Tracker",
     "Overachiever.Util",
@@ -43,11 +45,13 @@ function Overachiever:OnLoad()
 end
 
 local Achievements
+local Paths
 local Tracker
 local Trackable
 local Util
 function Overachiever:LoadDependencies()
   Achievements = Apollo.GetPackage("Overachiever.Achievements").tPackage
+  Paths        = Apollo.GetPackage("Overachiever.Paths").tPackage
   Trackable    = Apollo.GetPackage("Overachiever.Trackable").tPackage
   Tracker      = Apollo.GetPackage("Overachiever.Tracker").tPackage
   Util         = Apollo.GetPackage("Overachiever.Util").tPackage
@@ -57,7 +61,10 @@ end
 
 function Overachiever:InitializeRuntimeState()
   self.achievements = Achievements:new(self.config.achievements)
+  self.paths        = Paths:new(self.config.paths)
   self.tracker      = Tracker:new(self.config.tracker)
+
+  self.recentlyCreatedUnits = {}
 
   self.trackablesInRange = Util.CountedReferenceMap:new()
 end
@@ -94,6 +101,14 @@ function Overachiever:OnTick()
     self:OnGameReady()
   end
 
+  -- TODO(nevir): Some unit state is not available during OnUnitCreated; but it
+  -- appears to always be ready by next tick (so probably not relying on network
+  -- I/O). Order of execution fail?
+  for i, unit in ipairs(self.recentlyCreatedUnits) do
+    self:DeferredOnUnitCreated(unit)
+  end
+  self.recentlyCreatedUnits = {}
+
   -- TODO(nevir): WOW WHAT A HACK.
   for id, trackable in pairs(self.tracker.trackablesById) do
     if not self:TrackableForUnit(GameLib.GetUnitById(id)) then
@@ -113,6 +128,10 @@ function Overachiever:OnGameReady()
 end
 
 function Overachiever:OnUnitCreated(unit)
+  table.insert(self.recentlyCreatedUnits, unit)
+end
+
+function Overachiever:DeferredOnUnitCreated(unit)
   if not unit:IsValid() then return end
   local unitId   = unit:GetId()
   local existing = self.trackablesInRange[unitId]
@@ -129,7 +148,6 @@ function Overachiever:OnUnitCreated(unit)
 end
 
 function Overachiever:OnUnitDestroyed(unit)
-  if not unit:IsValid() then return end
   local unitId    = unit:GetId()
   local trackable = self.trackablesInRange[unitId]
   if not trackable then return end
@@ -148,10 +166,11 @@ function Overachiever:TrackableForUnit(unit)
   if unit:GetType() == UNIT_TYPE_PLAYER then return end
 
   local achievements = self.achievements:ForUnit(unit)
+  local missions = self.paths:MissionsForUnit(unit)
   local reasons = self.achievements:ExtraReasonsForUnit(unit)
-  if table.getn(achievements) == 0 and table.getn(reasons) == 0 then return end
+  if table.getn(achievements) == 0 and table.getn(missions) == 0 and table.getn(reasons) == 0 then return end
 
-  return Trackable:new(self.config.tracker, unit, achievements, reasons)
+  return Trackable:new(self.config.tracker, unit, achievements, missions, reasons)
 end
 
 function Overachiever:RefreshAllUnitsInRange()

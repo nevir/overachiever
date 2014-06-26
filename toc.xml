@@ -6,6 +6,7 @@
 
   <Script Name="Achievements.lua"/>
   <Script Name="Overachiever.lua"/>
+  <Script Name="Paths.lua"/>
   <Script Name="Trackable.lua"/>
   <Script Name="Tracker.lua"/>
   <Script Name="Util.lua"/>
