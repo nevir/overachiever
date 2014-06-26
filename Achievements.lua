@@ -39,18 +39,17 @@ local CATEGORY_HOTSHOT      = 284
 
 function Achievements:new(config)
   instance = {
-    config = config
+    config = config,
+    watchedByUnitName = Util.DefaultTable:new(function(key) return {} end),
+    secretStashByZone = {},
+
   }
   setmetatable(instance, self)
-  instance:IndexAll()
 
   return instance
 end
 
 function Achievements:IndexAll()
-  self.watchedByUnitName = Util.DefaultTable:new(function(key) return {} end)
-  self.secretStashByZone = {}
-
   self:IndexKillAchievements()
   self:IndexSecretStashAchievements()
 end

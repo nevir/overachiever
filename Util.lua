@@ -39,6 +39,7 @@ Util.CountedReferenceMap = {}
 Util.CountedReferenceMap.__index = Util.CountedReferenceMap
 
 function Util.CountedReferenceMap:new()
+  -- TODO(nevir): Make itreation not suck.
   -- TODO(nevir): In debug mode, track count over time to help detect leaks.
   instance = {count = 0}
   setmetatable(instance, self)
@@ -47,9 +48,11 @@ function Util.CountedReferenceMap:new()
 end
 
 function Util.CountedReferenceMap:Add(id, value)
-  if self[id] then return end
+  local previous = self[id]
   self[id] = value
-  self.count = self.count + 1
+  if not previous then
+    self.count = self.count + 1
+  end
 end
 
 function Util.CountedReferenceMap:Remove(id)

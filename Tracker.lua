@@ -20,7 +20,6 @@ function Tracker:new(config)
   instance = {
     config = config,
     doc = XmlDoc.CreateFromFile("Tracker.xml"),
-    player = GameLib.GetPlayerUnit(),
     shown = true,
     trackablesById = {},
   }
@@ -116,6 +115,7 @@ function Tracker:AppendRow(trackable, animate)
   if trackable.row then return end
   trackable.row = Apollo.LoadForm(self.doc, "UnitRow", self.scrollArea, self)
   trackable.row:SetData(trackable)
+  trackable:Render()
   if animate then
     trackable.row:SetSprite("CRB_WindowAnimationSprites:sprWinAnim_BirthSmallTemp")
   end

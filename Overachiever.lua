@@ -85,7 +85,35 @@ end
 
 -- Event Handlers --
 
+function Overachiever:OnTick()
+  if not self.player then
+    local player = GameLib.GetPlayerUnit()
+    if not player:IsValid() then return end
+    self.player = player
+    self.tracker.player = player
+    self:OnGameReady()
+  end
+
+  -- TODO(nevir): WOW WHAT A HACK.
+  for id, trackable in pairs(self.tracker.trackablesById) do
+    if not self:TrackableForUnit(GameLib.GetUnitById(id)) then
+      self.tracker:Forget(trackable)
+      self.trackablesInRange:Remove(id)
+    end
+  end
+
+  self.tracker:Render()
+end
+
+function Overachiever:OnGameReady()
+  -- TODO(nevir): Maddeningly, *some* achievements are ready at OnLoad time, but not all!
+  self.achievements:IndexAll()
+  -- TODO(nevir): Similarly, many units are not fully loaded while the player is zoning in.
+  self:RefreshAllUnitsInRange()
+end
+
 function Overachiever:OnUnitCreated(unit)
+  if not unit:IsValid() then return end
   local unitId   = unit:GetId()
   local existing = self.trackablesInRange[unitId]
   if existing then return end
@@ -101,6 +129,7 @@ function Overachiever:OnUnitCreated(unit)
 end
 
 function Overachiever:OnUnitDestroyed(unit)
+  if not unit:IsValid() then return end
   local unitId    = unit:GetId()
   local trackable = self.trackablesInRange[unitId]
   if not trackable then return end
@@ -109,19 +138,6 @@ function Overachiever:OnUnitDestroyed(unit)
     self.tracker:Forget(trackable)
   end
   self.trackablesInRange:Remove(unitId)
-end
-
-function Overachiever:OnTick()
-  -- TODO(nevir): WOW WHAT A HACK.
-  for id, trackable in pairs(self.tracker.trackablesById) do
-    -- TODO(nevir): Deal with non-units.
-    if not self:TrackableForUnit(GameLib.GetUnitById(id)) then
-      self.tracker:Forget(trackable)
-      self.trackablesInRange:Remove(id)
-    end
-  end
-
-  self.tracker:Render()
 end
 
 -- Trackables --
@@ -136,6 +152,22 @@ function Overachiever:TrackableForUnit(unit)
   if table.getn(achievements) == 0 and table.getn(reasons) == 0 then return end
 
   return Trackable:new(self.config.tracker, unit, achievements, reasons)
+end
+
+function Overachiever:RefreshAllUnitsInRange()
+  -- Sometimes, we get UnitCreated/UnitDestroyed events before units have all their
+  -- details available (typically, when logging in the first time).
+  --
+  -- So we re-scan to make sure that the units we know about are actually correct.
+  for unitId, trackable in pairs(self.trackablesInRange) do
+    if trackable == true and unitId ~= "count" then
+      local trackable = self:TrackableForUnit(GameLib.GetUnitById(unitId))
+      if trackable then
+        self.trackablesInRange:Add(unitId, trackable)
+        self.tracker:Track(trackable)
+      end
+    end
+  end
 end
 
 -- Entry Point --
