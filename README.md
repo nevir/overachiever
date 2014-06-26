@@ -3,7 +3,7 @@ Overachiever
 
 A WildStar addon that helps you be a good little completionist!
 
-**You must have [TrackMaster][www.curse.com/ws-addons/wildstar/220025-track-master] installed to use Overachiever!** 
+**You must have [TrackMaster](www.curse.com/ws-addons/wildstar/220025-track-master) installed to use Overachiever!** 
 
 
 What's it do?
