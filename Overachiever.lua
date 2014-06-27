@@ -111,7 +111,7 @@ function Overachiever:OnTick()
 
   -- TODO(nevir): WOW WHAT A HACK.
   for id, trackable in pairs(self.tracker.trackablesById) do
-    if not self:TrackableForUnit(GameLib.GetUnitById(id)) then
+    if not self:GetTrackableForUnit(GameLib.GetUnitById(id)) then
       self.tracker:Forget(trackable)
       self.trackablesInRange:Remove(id)
     end
@@ -137,7 +137,7 @@ function Overachiever:DeferredOnUnitCreated(unit)
   local existing = self.trackablesInRange[unitId]
   if existing then return end
 
-  local trackable = self:TrackableForUnit(unit)
+  local trackable = self:GetTrackableForUnit(unit)
   if not trackable then
     -- So that we do not query it again.
     self.trackablesInRange:Add(unitId, true)
@@ -160,14 +160,14 @@ end
 
 -- Trackables --
 
-function Overachiever:TrackableForUnit(unit)
+function Overachiever:GetTrackableForUnit(unit)
   if not unit then return end
   if unit:IsDead() then return end
   if unit:GetType() == UNIT_TYPE_PLAYER then return end
 
-  local achievements = self.achievements:ForUnit(unit)
-  local missions = self.paths:MissionsForUnit(unit)
-  local reasons = self.achievements:ExtraReasonsForUnit(unit)
+  local achievements = self.achievements:GetForUnit(unit)
+  local missions = self.paths:GetMissionsForUnit(unit)
+  local reasons = self.achievements:GetExtraReasonsForUnit(unit)
   if table.getn(achievements) == 0 and table.getn(missions) == 0 and table.getn(reasons) == 0 then return end
 
   return Trackable:new(self.config.tracker, unit, achievements, missions, reasons)
@@ -180,7 +180,7 @@ function Overachiever:RefreshAllUnitsInRange()
   -- So we re-scan to make sure that the units we know about are actually correct.
   for unitId, trackable in pairs(self.trackablesInRange) do
     if trackable == true and unitId ~= "count" then
-      local trackable = self:TrackableForUnit(GameLib.GetUnitById(unitId))
+      local trackable = self:GetTrackableForUnit(GameLib.GetUnitById(unitId))
       if trackable then
         self.trackablesInRange:Add(unitId, trackable)
         self.tracker:Track(trackable)
