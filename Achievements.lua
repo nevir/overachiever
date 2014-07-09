@@ -54,7 +54,7 @@ function Achievements:IndexAll()
 end
 
 function Achievements:IndexKillAchievements()
-  for i, achievement in ipairs(self:IncompleteForCategory(CATEGORY_KILL, true)) do
+  for i, achievement in ipairs(self:GetIncompleteForCategory(CATEGORY_KILL, true)) do
     for j, item in ipairs(achievement:GetChecklistItems() or {}) do
       if not item.bIsComplete then
         local name = Util.Normalize(item.strChecklistEntry)
@@ -70,7 +70,7 @@ end
 
 -- Querying --
 
-function Achievements:ForUnit(unit)
+function Achievements:GetForUnit(unit)
   local achievements = {}
   local forName = rawget(self.watchedByUnitName, Util.Normalize(unit:GetName()))
   for i, achievement in ipairs(forName or {}) do
@@ -82,7 +82,7 @@ end
 
 -- TODO(nevir): This should really be elsewhere, but for now it's convenient to
 -- keep the ACTIVATION_* constants together.
-function Achievements:ExtraReasonsForUnit(unit)
+function Achievements:GetExtraReasonsForUnit(unit)
   local reasons = {}
   local activations = unit:GetActivationState() or {}
   if activations[ACTIVATION_LORE] then
@@ -106,7 +106,7 @@ end
 
 -- Utility --
 
-function Achievements:IncompleteForCategory(category, deep)
+function Achievements:GetIncompleteForCategory(category, deep)
   local achievements = {}
   for i, achievement in ipairs(AchievementsLib.GetAchievementsForCategory(category, deep)) do
     if not achievement:IsComplete() then

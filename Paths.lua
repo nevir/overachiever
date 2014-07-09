@@ -24,7 +24,7 @@ end
 
 -- Querying --
 
-function Paths:MissionsForUnit(unit)
+function Paths:GetMissionsForUnit(unit)
   local missions = {}
   for i, info in ipairs(unit:GetRewardInfo() or {}) do
     local mission = info.pmMission
